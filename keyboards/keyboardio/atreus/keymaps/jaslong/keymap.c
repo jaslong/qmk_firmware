@@ -45,24 +45,83 @@ enum custom_keycodes {
     ARROW,
 };
 
-bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-  switch (keycode) {
-    case GUITAB:
-      if (record->event.pressed) {
-        register_code(KC_LGUI);
-        layer_on(5);
-      } else {
-        layer_off(5);
-        unregister_code(KC_LGUI);
-      }
-      break;
-    case ARROW:
-      if (record->event.pressed) {
-        SEND_STRING("=>");
-      }
-      break;
+bool handle_guitab(bool down) {
+  if (down) {
+    register_code(KC_LGUI);
+    layer_on(5);
+  } else {
+    layer_off(5);
+    unregister_code(KC_LGUI);
   }
   return true;
+}
+
+bool handle_arrow(bool down) {
+  if (down) {
+    SEND_STRING("=>");
+  }
+  return true;
+}
+
+// Up/down/left/right + number repeats the last direction number times within 2000ms.
+// Number 0 repeats 10 times.
+
+uint16_t last_dir_kc = 0;
+uint16_t last_dir_kc_time = 0;
+
+bool handle_dir(bool down, uint16_t keycode) {
+  if (down) {
+  } else {
+    last_dir_kc = keycode;
+    last_dir_kc_time = timer_read();
+  }
+  return true;
+}
+
+bool handle_num(bool down, uint16_t keycode) {
+  if (down) {
+    if (timer_read() - last_dir_kc_time > 2000) {
+      return true;
+    } else {
+      // KC_1 is the lowest and KC_0 is the highest, so KC_0 naturally becomes 10.
+      int times = keycode - KC_1 + 1;
+      for (int i = 0; i < times; ++i) {
+        tap_code(last_dir_kc);
+      }
+      last_dir_kc_time = timer_read();
+      return false;
+    }
+  } else {
+    return true;
+  }
+}
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+  bool down = record->event.pressed;
+  switch (keycode) {
+    case KC_UP:
+    case KC_DOWN:
+    case KC_LEFT:
+    case KC_RGHT:
+      return handle_dir(down, keycode);
+    case KC_1:
+    case KC_2:
+    case KC_3:
+    case KC_4:
+    case KC_5:
+    case KC_6:
+    case KC_7:
+    case KC_8:
+    case KC_9:
+    case KC_0:
+      return handle_num(down, keycode);
+    case GUITAB:
+      return handle_guitab(down);
+    case ARROW:
+      return handle_arrow(down);
+    default:
+      return true;
+  }
 };
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
